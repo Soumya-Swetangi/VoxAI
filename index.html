@@ -6,7 +6,7 @@
     <title>Public Opinion Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="icon" href="data:,"> <!-- Prevent favicon 404 -->
+    <link rel="icon" href="data:,">
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl animate-fade-in">
@@ -15,103 +15,194 @@
             <input id="topic" type="text" placeholder="Enter topic (e.g., AI)" class="p-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">
             <button id="analyze" class="bg-blue-500 text-white p-2 rounded-r-md hover:bg-blue-600 transition">Analyze</button>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="mb-4 text-center text-sm">
+            <p><strong>Sentiment Score Legend:</strong></p>
+            <p>Positive: > 0.05 | Neutral: -0.05 to 0.05 | Negative: < -0.05</p>
+        </div>
+        <div class="mb-4">
+            <p><strong>Reddit Stats:</strong> <span id="redditStats">No data yet</span></p>
+            <p><strong>News Stats:</strong> <span id="newsStats">No data yet</span></p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
                 <h2 class="text-xl font-semibold mb-2">Reddit Sentiment</h2>
                 <canvas id="redditChart" class="w-full h-64"></canvas>
             </div>
             <div>
+                ядерна енергетика України
                 <h2 class="text-xl font-semibold mb-2">News Sentiment</h2>
                 <canvas id="newsChart" class="w-full h-64"></canvas>
             </div>
         </div>
-        <div class="mt-6">
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Sentiment Distribution</h2>
+            <canvas id="sentimentPie" class="w-full max-w-sm mx-auto h-64"></canvas>
+        </div>
+        <div>
             <h2 class="text-xl font-semibold mb-2">Recent Analyses</h2>
             <div id="recent" class="space-y-2"></div>
         </div>
     </div>
 
     <script>
-        const redditChart = new Chart(document.getElementById('redditChart').getContext('2d'), {
-            type: 'bar',
-            data: { labels: [], datasets: [{ label: 'Sentiment', data: [], backgroundColor: 'rgba(59, 130, 246, 0.5)' }] },
-            options: { 
-                scales: { 
-                    y: { 
-                        beginAtZero: true, 
-                        min: -1, 
-                        max: 1 
-                    } 
-                }, 
-                animation: { 
-                    duration: 1000, 
-                    easing: 'easeOutBounce' 
-                } 
-            }
-        });
-        const newsChart = new Chart(document.getElementById('newsChart').getContext('2d'), {
-            type: 'bar',
-            data: { labels: [], datasets: [{ label: 'Sentiment', data: [], backgroundColor: 'rgba(34, 197, 94, 0.5)' }] },
-            options: { 
-                scales: { 
-                    y: { 
-                        beginAtZero: true, 
-                        min: -1, 
-                        max: 1 
-                    } 
-                }, 
-                animation: { 
-                    duration: 1000, 
-                    easing: 'easeOutBounce' 
-                } 
-            }
-        });
-
-        document.getElementById('analyze').addEventListener('click', async () => {
-            const topic = document.getElementById('topic').value.trim();
-            if (!topic) return alert('Please enter a topic');
-
-            const response = await fetch(`https://fuzzy-space-meme-4jvp6xw56652jjqw-5000.app.github.dev/api/analyze/${encodeURIComponent(topic)}`);            const data = await response.json();
-
-            // Update charts
-            redditChart.data.labels = data.reddit.map((_, i) => `Post ${i + 1}`);
-            redditChart.data.datasets[0].data = data.reddit.map(s => s.compound);
-            redditChart.update();
-
-            newsChart.data.labels = data.news.map((_, i) => `Article ${i + 1}`);
-            newsChart.data.datasets[0].data = data.news.map(s => s.compound);
-            newsChart.update();
-
-            // Update recent analyses
-            loadRecent();
-        });
-
-        async function loadRecent() {
-            const response = await fetch('https://fuzzy-space-meme-4jvp6xw56652jjqw-5000.app.github.dev/api/data');            const data = await response.json();
-            const recentDiv = document.getElementById('recent');
-            recentDiv.innerHTML = '';
-
-            const allSentiments = [...data.reddit, ...data.news].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
-            allSentiments.forEach(s => {
-                const div = document.createElement('div');
-                div.className = 'p-2 bg-gray-50 rounded animate-slide-in';
-                div.textContent = `${s.text} (Sentiment: ${s.compound.toFixed(2)})`;
-                recentDiv.appendChild(div);
+        document.addEventListener('DOMContentLoaded', () => {
+            const redditChart = new Chart(document.getElementById('redditChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Sentiment', data: [], backgroundColor: 'rgba(59, 130, 246, 0.5)' }] },
+                options: { 
+                    scales: { y: { beginAtZero: true, min: -1, max: 1 } }, 
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const item = context.dataset.customData ? context.dataset.customData[context.dataIndex] : {};
+                                    return [
+                                        `Positive: ${item.positive?.toFixed(2) || 'N/A'}`,
+                                        `Negative: ${item.negative?.toFixed(2) || 'N/A'}`,
+                                        `Neutral: ${item.neutral?.toFixed(2) || 'N/A'}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    animation: { duration: 1000, easing: 'easeOutBounce' } 
+                }
             });
-        }
+            const newsChart = new Chart(document.getElementById('newsChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Sentiment', data: [], backgroundColor: 'rgba(34, 197, 94, 0.5)' }] },
+                options: { 
+                    scales: { y: { beginAtZero: true, min: -1, max: 1 } }, 
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const item = context.dataset.customData ? context.dataset.customData[context.dataIndex] : {};
+                                    return [
+                                        `Positive: ${item.positive?.toFixed(2) || 'N/A'}`,
+                                        `Negative: ${item.negative?.toFixed(2) || 'N/A'}`,
+                                        `Neutral: ${item.neutral?.toFixed(2) || 'N/A'}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    animation: { duration: 1000, easing: 'easeOutBounce' } 
+                }
+            });
+            const pieChart = new Chart(document.getElementById('sentimentPie').getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: ['Positive', 'Negative', 'Neutral'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#22c55e', '#ef4444', '#d1d5db']
+                    }]
+                },
+                options: {
+                    animation: { duration: 1000, easing: 'easeOutBounce' }
+                }
+            });
 
-        // Load recent data on page load
-        loadRecent();
+            document.getElementById('analyze').addEventListener('click', async () => {
+                const topic = document.getElementById('topic').value.trim();
+                if (!topic) return alert('Please enter a topic');
 
-        // Tailwind animation classes
-        const style = document.createElement('style');
-        style.textContent = `
-            .animate-fade-in { animation: fadeIn 1s ease-in; }
-            .animate-slide-in { animation: slideIn 0.5s ease-out; }
-            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        `;
-        document.head.appendChild(style);
+                try {
+                    console.log(`Fetching data for topic: ${topic}`);
+                    const response = await fetch(`/api/analyze/${encodeURIComponent(topic)}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) {
+                        const text = await response.text();
+                        console.error('Response error:', text);
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    console.log('API response:', data);
+
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+
+                    // Update charts with truncated titles
+                    redditChart.data.labels = data.reddit.map(s => s.text.substring(0, 30) + "...");
+                    redditChart.data.datasets[0].data = data.reddit.map(s => s.compound);
+                    redditChart.data.datasets[0].customData = data.reddit;
+                    redditChart.update();
+
+                    newsChart.data.labels = data.news.map(s => s.text.substring(0, 30) + "...");
+                    newsChart.data.datasets[0].data = data.news.map(s => s.compound);
+                    newsChart.data.datasets[0].customData = data.news;
+                    newsChart.update();
+
+                    // Update pie chart
+                    const pieData = [
+                        data.reddit_stats.positive + data.news_stats.positive,
+                        data.reddit_stats.negative + data.news_stats.negative,
+                        data.reddit_stats.neutral + data.news_stats.neutral
+                    ];
+                    console.log('Pie chart data:', pieData);
+                    pieChart.data.datasets[0].data = pieData;
+                    pieChart.update();
+
+                    // Update stats
+                    document.getElementById('redditStats').textContent = `${data.reddit_stats.count} items (Positive: ${data.reddit_stats.positive}, Negative: ${data.reddit_stats.negative}, Neutral: ${data.reddit_stats.neutral})`;
+                    document.getElementById('newsStats').textContent = `${data.news_stats.count} items (Positive: ${data.news_stats.positive}, Negative: ${data.news_stats.negative}, Neutral: ${data.news_stats.neutral})`;
+
+                    // Update recent analyses
+                    await loadRecent();
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    alert('Failed to analyze topic. Please check the server and try a broader topic (e.g., AI).');
+                }
+            });
+
+            async function loadRecent() {
+                try {
+                    const response = await fetch('/api/data', {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) {
+                        const text = await response.text();
+                        console.error('Recent data error:', text);
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    console.log('Recent data:', data);
+
+                    const recentDiv = document.getElementById('recent');
+                    recentDiv.innerHTML = '';
+
+                    const allSentiments = [...data.reddit, ...data.news].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
+                    allSentiments.forEach(s => {
+                        const div = document.createElement('div');
+                        div.className = 'p-2 bg-gray-50 rounded animate-slide-in';
+                        const source = data.reddit.includes(s) ? 'Reddit' : 'News';
+                        const date = new Date(s.timestamp).toLocaleString();
+                        div.innerHTML = `<strong>${source}</strong>: ${s.text} <br><em>Sentiment: ${s.compound.toFixed(2)} | ${date}</em>`;
+                        recentDiv.appendChild(div);
+                    });
+                } catch (error) {
+                    console.error('Fetch error for recent data:', error);
+                    document.getElementById('recent').innerHTML = '<p class="text-red-500">Failed to load recent analyses.</p>';
+                }
+            }
+
+            // Load recent data on page load
+            loadRecent();
+
+            // Tailwind animation classes
+            const style = document.createElement('style');
+            style.textContent = `
+                .animate-fade-in { animation: fadeIn 1s ease-in; }
+                .animate-slide-in { animation: slideIn 0.5s ease-out; }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+            `;
+            document.head.appendChild(style);
+        });
     </script>
 </body>
 </html>

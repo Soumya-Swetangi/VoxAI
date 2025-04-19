@@ -21,7 +21,7 @@ analyzer = SentimentIntensityAnalyzer()
 
 DATA_FILE = "data.json"
 
-
+# Initialize data.json if it doesn't exist
 # Initialize data.json if it doesn't exist
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, 'w') as f:
@@ -36,6 +36,9 @@ def get_reddit_sentiment(topic):
             sentiments.append({
                 "text": post.title,
                 "compound": sentiment['compound'],
+                "positive": sentiment['pos'],
+                "negative": sentiment['neg'],
+                "neutral": sentiment['neu'],
                 "timestamp": datetime.utcnow().isoformat()
             })
         return sentiments
@@ -56,6 +59,9 @@ def get_news_sentiment(topic):
                 sentiments.append({
                     "text": title,
                     "compound": sentiment['compound'],
+                    "positive": sentiment['pos'],
+                    "negative": sentiment['neg'],
+                    "neutral": sentiment['neu'],
                     "timestamp": datetime.utcnow().isoformat()
                 })
         return sentiments
@@ -72,6 +78,9 @@ def analyze_topic(topic):
     reddit_sentiments = get_reddit_sentiment(topic)
     news_sentiments = get_news_sentiment(topic)
 
+    if not reddit_sentiments and not news_sentiments:
+        return jsonify({"error": "No data found for this topic"}), 
+
     # Load existing data
     with open(DATA_FILE, 'r') as f:
         data = json.load(f)
@@ -84,15 +93,29 @@ def analyze_topic(topic):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-    # Calculate averages
+    # Calculate averages and statistics
     reddit_avg = sum(s['compound'] for s in reddit_sentiments) / len(reddit_sentiments) if reddit_sentiments else 0
     news_avg = sum(s['compound'] for s in news_sentiments) / len(news_sentiments) if news_sentiments else 0
+    reddit_stats = {
+        "count": len(reddit_sentiments),
+        "positive": len([s for s in reddit_sentiments if s['compound'] > 0.05]),
+        "negative": len([s for s in reddit_sentiments if s['compound'] < -0.05]),
+        "neutral": len([s for s in reddit_sentiments if -0.05 <= s['compound'] <= 0.05])
+    }
+    news_stats = {
+        "count": len(news_sentiments),
+        "positive": len([s for s in news_sentiments if s['compound'] > 0.05]),
+        "negative": len([s for s in news_sentiments if s['compound'] < -0.05]),
+        "neutral": len([s for s in news_sentiments if -0.05 <= s['compound'] <= 0.05])
+    }
 
     return jsonify({
         "reddit": reddit_sentiments,
         "news": news_sentiments,
         "reddit_avg": reddit_avg,
-        "news_avg": news_avg
+        "news_avg": news_avg,
+        "reddit_stats": reddit_stats,
+        "news_stats": news_stats
     })
 
 @app.route('/api/data')
