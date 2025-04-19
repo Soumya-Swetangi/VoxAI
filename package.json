@@ -1,22 +1,14 @@
 {
-  "dependencies": {
-    "@tailwindcss/vite": "^4.1.4",
-    "autoprefixer": "^10.4.21",
-    "axios": "^1.8.4",
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "postcss": "^8.5.3",
-    "snoowrap": "^1.23.0",
-    "tailwindcss": "^4.1.4"
-  },
-  "name": "voxai",
+  "name": "public-opinion-tracker",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Public Opinion Tracker Dashboard",
+  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "build:css": "tailwindcss -i ./input.css -o ./static/tailwind.css --minify"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tailwindcss": "^3.4.14"
   },
   "keywords": [],
   "author": "",
