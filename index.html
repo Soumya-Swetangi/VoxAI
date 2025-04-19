@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Opinion Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" href="data:,"> <!-- Prevent favicon 404 -->
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl animate-fade-in">
+        <h1 class="text-3xl font-bold text-center mb-6">Public Opinion Tracker</h1>
+        <div class="mb-4 flex justify-center">
+            <input id="topic" type="text" placeholder="Enter topic (e.g., AI)" class="p-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="analyze" class="bg-blue-500 text-white p-2 rounded-r-md hover:bg-blue-600 transition">Analyze</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Reddit Sentiment</h2>
+                <canvas id="redditChart" class="w-full h-64"></canvas>
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold mb-2">News Sentiment</h2>
+                <canvas id="newsChart" class="w-full h-64"></canvas>
+            </div>
+        </div>
+        <div class="mt-6">
+            <h2 class="text-xl font-semibold mb-2">Recent Analyses</h2>
+            <div id="recent" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        const redditChart = new Chart(document.getElementById('redditChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Sentiment', data: [], backgroundColor: 'rgba(59, 130, 246, 0.5)' }] },
+            options: { 
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        min: -1, 
+                        max: 1 
+                    } 
+                }, 
+                animation: { 
+                    duration: 1000, 
+                    easing: 'easeOutBounce' 
+                } 
+            }
+        });
+        const newsChart = new Chart(document.getElementById('newsChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Sentiment', data: [], backgroundColor: 'rgba(34, 197, 94, 0.5)' }] },
+            options: { 
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        min: -1, 
+                        max: 1 
+                    } 
+                }, 
+                animation: { 
+                    duration: 1000, 
+                    easing: 'easeOutBounce' 
+                } 
+            }
+        });
+
+        document.getElementById('analyze').addEventListener('click', async () => {
+            const topic = document.getElementById('topic').value.trim();
+            if (!topic) return alert('Please enter a topic');
+
+            const response = await fetch(`https://fuzzy-space-meme-4jvp6xw56652jjqw-5000.app.github.dev/api/analyze/${encodeURIComponent(topic)}`);            const data = await response.json();
+
+            // Update charts
+            redditChart.data.labels = data.reddit.map((_, i) => `Post ${i + 1}`);
+            redditChart.data.datasets[0].data = data.reddit.map(s => s.compound);
+            redditChart.update();
+
+            newsChart.data.labels = data.news.map((_, i) => `Article ${i + 1}`);
+            newsChart.data.datasets[0].data = data.news.map(s => s.compound);
+            newsChart.update();
+
+            // Update recent analyses
+            loadRecent();
+        });
+
+        async function loadRecent() {
+            const response = await fetch('https://fuzzy-space-meme-4jvp6xw56652jjqw-5000.app.github.dev/api/data');            const data = await response.json();
+            const recentDiv = document.getElementById('recent');
+            recentDiv.innerHTML = '';
+
+            const allSentiments = [...data.reddit, ...data.news].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
+            allSentiments.forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'p-2 bg-gray-50 rounded animate-slide-in';
+                div.textContent = `${s.text} (Sentiment: ${s.compound.toFixed(2)})`;
+                recentDiv.appendChild(div);
+            });
+        }
+
+        // Load recent data on page load
+        loadRecent();
+
+        // Tailwind animation classes
+        const style = document.createElement('style');
+        style.textContent = `
+            .animate-fade-in { animation: fadeIn 1s ease-in; }
+            .animate-slide-in { animation: slideIn 0.5s ease-out; }
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
