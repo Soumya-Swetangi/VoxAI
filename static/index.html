@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Opinion Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="icon" href="data:,">
+    <style>
+        :root {
+            --primary: #1E3A8A; /* Slate Blue */
+            --secondary: #D1D5DB; /* Soft Gray */
+            --accent: #F87171; /* Coral Pink */
+            --background: #F3F4F6; /* Off-White */
+            --text: #111827; /* Charcoal */
+        }
+        .dark {
+            --primary: #93C5FD; /* Blue-300 */
+            --secondary: #4B5563; /* Gray-600 */
+            --accent: #FCA5A5; /* Red-300 */
+            --background: #111827; /* Gray-900 */
+            --text: #E5E7EB; /* Gray-200 */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300" style="background-color: var(--background)">
+    <div class="p-6 rounded-lg shadow-lg w-full max-w-5xl animate-fade-in" style="background-color: var(--secondary)">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold" style="color: var(--primary)">Public Opinion Tracker</h1>
+            <button id="themeToggle" class="p-2 rounded-full" style="background-color: var(--background)">
+                <svg class="w-6 h-6" style="color: var(--text)" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-6 flex flex-col sm:flex-row gap-4">
+            <div class="relative flex-1">
+                <input id="topic" type="text" placeholder="Enter topic (e.g., AI)" class="w-full p-3 border rounded-md focus:outline-none focus:ring-2" style="background-color: var(--background); color: var(--text); border-color: var(--secondary); --tw-ring-color: var(--accent)">
+                <ul id="suggestions" class="absolute w-full border rounded-md mt-1 max-h-40 overflow-y-auto hidden" style="background-color: var(--background); border-color: var(--secondary)">
+                </ul>
+            </div>
+            <button id="analyze" class="p-3 rounded-md hover:opacity-90 transition flex items-center" style="background-color: var(--accent); color: var(--text)">
+                <span id="analyzeText">Analyze</span>
+                <svg id="loadingSpinner" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- AI Insights -->
+        <div id="insights" class="mb-6 p-4 rounded-md hidden" style="background-color: var(--secondary)">
+            <h2 class="text-xl font-semibold" style="color: var(--primary)">AI Insights</h2>
+            <p id="insightsSummary" style="color: var(--text)"></p>
+            <div class="mt-2">
+                <strong style="color: var(--primary)">Themes:</strong>
+                <span id="insightsThemes" style="color: var(--text)"></span>
+            </div>
+            <div class="mt-2">
+                <strong style="color: var(--primary)">Recommended Topics:</strong>
+                <span id="insightsRecommendations" style="color: var(--text)"></span>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="p-4 rounded-md" style="background-color: var(--secondary)">
+                <h2 class="text-xl font-semibold mb-2" style="color: var(--primary)">Reddit Sentiment</h2>
+                <canvas id="redditChart" class="w-full h-64"></canvas>
+            </div>
+            <div class="p-4 rounded-md" style="background-color: var(--secondary)">
+                <h2 class="text-xl font-semibold mb-2" style="color: var(--primary)">News Sentiment</h2>
+                <canvas id="newsChart" class="w-full h-64"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Analyses -->
+        <div class="mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold" style="color: var(--primary)">Recent Analyses</h2>
+                <div class="flex gap-2">
+                    <select id="sourceFilter" class="p-2 border rounded-md" style="background-color: var(--background); color: var(--text); border-color: var(--secondary)">
+                        <option value="all">All Sources</option>
+                        <option value="reddit">Reddit</option>
+                        <option value="news">News</option>
+                    </select>
+                    <button id="exportCsv" class="p-2 rounded-md hover:opacity-90 transition" style="background-color: var(--accent); color: var(--text)">Export CSV</button>
+                </div>
+            </div>
+            <div id="recent" class="space-y-2 max-h-60 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Charts
+        const redditChart = new Chart(document.getElementById('redditChart').getContext('2d'), {
+            type: 'bar',
+            data: { 
+                labels: [], 
+                datasets: [{ 
+                    label: 'Reddit Sentiment', 
+                    data: [], 
+                    backgroundColor: 'rgba(248, 113, 113, 0.5)', // #F87171 with opacity
+                    borderColor: '#F87171', 
+                    borderWidth: 1 
+                }] 
+            },
+            options: {
+                scales: { y: { beginAtZero: true, min: -1, max: 1 } },
+                plugins: { 
+                    tooltip: { callbacks: { label: ctx => `Sentiment: ${ctx.raw.toFixed(2)}` } } 
+                },
+                animation: { duration: 1000, easing: 'easeOutBounce' },
+                onClick: (e, elements) => {
+                    if (elements.length) {
+                        const index = elements[0].index;
+                        const text = redditChart.data.labels[index];
+                        alert(`Reddit Post: ${text}`);
+                    }
+                }
+            }
+        });
+
+        const newsChart = new Chart(document.getElementById('newsChart').getContext('2d'), {
+            type: 'bar',
+            data: { 
+                labels: [], 
+                datasets: [{ 
+                    label: 'News Sentiment', 
+                    data: [], 
+                    backgroundColor: 'rgba(30, 58, 138, 0.5)', // #1E3A8A with opacity
+                    borderColor: '#1E3A8A', 
+                    borderWidth: 1 
+                }] 
+            },
+            options: {
+                scales: { y: { beginAtZero: true, min: -1, max: 1 } },
+                plugins: { 
+                    tooltip: { callbacks: { label: ctx => `Sentiment: ${ctx.raw.toFixed(2)}` } } 
+                },
+                animation: { duration: 1000, easing: 'easeOutBounce' },
+                onClick: (e, elements) => {
+                    if (elements.length) {
+                        const index = elements[0].index;
+                        const text = newsChart.data.labels[index];
+                        alert(`News Article: ${text}`);
+                    }
+                }
+            }
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        themeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+        }
+
+        // Search and Analyze
+        const topicInput = document.getElementById('topic');
+        const analyzeBtn = document.getElementById('analyze');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const analyzeText = document.getElementById('analyzeText');
+        const suggestionsList = document.getElementById('suggestions');
+
+        // Autocomplete (mock suggestions)
+        const mockSuggestions = ['AI', 'Climate Change', 'Economy', 'Technology', 'Health', 'Punjab', 'LPU', 'India', 'fast'];
+        topicInput.addEventListener('input', () => {
+            const query = topicInput.value.toLowerCase();
+            suggestionsList.innerHTML = '';
+            if (query) {
+                const filtered = mockSuggestions.filter(s => s.toLowerCase().includes(query));
+                filtered.forEach(s => {
+                    const li = document.createElement('li');
+                    li.className = 'p-2 hover:opacity-90 cursor-pointer';
+                    li.style.backgroundColor = 'var(--background)';
+                    li.style.color = 'var(--text)';
+                    li.textContent = s;
+                    li.addEventListener('click', () => {
+                        topicInput.value = s;
+                        suggestionsList.classList.add('hidden');
+                    });
+                    suggestionsList.appendChild(li);
+                });
+                suggestionsList.classList.remove('hidden');
+            } else {
+                suggestionsList.classList.add('hidden');
+            }
+        });
+
+        analyzeBtn.addEventListener('click', async () => {
+            const topic = topicInput.value.trim();
+            if (!topic) return alert('Please enter a topic');
+
+            analyzeText.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+            analyzeBtn.disabled = true;
+
+            try {
+                console.log(`Sending request to /api/analyze/${encodeURIComponent(topic)}`);
+                const response = await axios.get(`/api/analyze/${encodeURIComponent(topic)}`);
+                console.log('Analyze response:', response.data);
+                const data = response.data;
+
+                // Update charts
+                redditChart.data.labels = data.reddit.map((_, i) => `Post ${i + 1}`);
+                redditChart.data.datasets[0].data = data.reddit.map(s => s.compound);
+                redditChart.update();
+
+                newsChart.data.labels = data.news.map((_, i) => `Article ${i + 1}`);
+                newsChart.data.datasets[0].data = data.news.map(s => s.compound);
+                newsChart.update();
+
+                // Fetch and display AI insights
+                console.log(`Sending request to /api/insights/${encodeURIComponent(topic)}`);
+                const insightsResponse = await axios.get(`/api/insights/${encodeURIComponent(topic)}`);
+                console.log('Insights response:', insightsResponse.data);
+                const insights = insightsResponse.data;
+                document.getElementById('insightsSummary').textContent = insights.summary;
+                document.getElementById('insightsThemes').textContent = insights.themes.join(', ');
+                document.getElementById('insightsRecommendations').textContent = insights.recommendations.join(', ');
+                document.getElementById('insights').classList.remove('hidden');
+
+                // Update recent analyses
+                await loadRecent();
+            } catch (error) {
+                const errorMessage = error.response && error.response.data && error.response.data.error
+                    ? error.response.data.error
+                    : `Request to /api/analyze/${topic} failed with status ${error.response ? error.response.status : 'unknown'}: ${error.message}`;
+                console.error('Analysis error:', errorMessage, error);
+                alert(`Failed to analyze topic "${topic}": ${errorMessage}. Please check server logs and ensure the server is running correctly.`);
+            } finally {
+                analyzeText.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        // Recent Analyses with Filtering
+        const sourceFilter = document.getElementById('sourceFilter');
+        async function loadRecent() {
+            try {
+                console.log('Sending request to /api/data');
+                const response = await axios.get('/api/data');
+                console.log('Data response:', response.data);
+                const data = response.data;
+                const recentDiv = document.getElementById('recent');
+                recentDiv.innerHTML = '';
+
+                const source = sourceFilter.value;
+                let filtered = [...data.reddit, ...data.news];
+                if (source !== 'all') {
+                    filtered = filtered.filter(s => s.source === source);
+                }
+
+                filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5).forEach(s => {
+                    const div = document.createElement('div');
+                    div.className = 'p-3 rounded animate-slide-in';
+                    div.style.backgroundColor = 'var(--secondary)';
+                    const sourceName = s.source ? (s.source.charAt(0).toUpperCase() + s.source.slice(1)) : 'Unknown';
+                    div.innerHTML = `<strong style="color: var(--primary)">${sourceName}:</strong> ${s.text} <span style="color: var(--text)"> (Sentiment: ${s.compound.toFixed(2)})</span>`;
+                    recentDiv.appendChild(div);
+                });
+            } catch (error) {
+                const errorMessage = error.response && error.response.data && error.response.data.error
+                    ? error.response.data.error
+                    : `Request to /api/data failed with status ${error.response ? error.response.status : 'unknown'}: ${error.message}`;
+                console.error('Error loading recent data:', errorMessage, error);
+                document.getElementById('recent').innerHTML = '<p class="text-red-500">Failed to load recent analyses. Please check server logs and ensure /api/data is available.</p>';
+            }
+        }
+
+        sourceFilter.addEventListener('change', loadRecent);
+        loadRecent();
+
+        // Export CSV
+        document.getElementById('exportCsv').addEventListener('click', async () => {
+            try {
+                console.log('Sending request to /api/export/csv');
+                const response = await fetch('/api/export/csv');
+                console.log('Export CSV response status:', response.status);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Request to /api/export/csv failed with status ${response.status}`);
+                }
+                const blob = await response.blob();
+                console.log('Export CSV blob received');
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sentiments.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                console.log('Export CSV download triggered');
+            } catch (error) {
+                const errorMessage = error.message || 'Unknown error';
+                console.error('Export CSV error:', errorMessage, error);
+                alert(`Failed to export CSV: ${errorMessage}. Please check server logs and ensure /api/export/csv is available.`);
+            }
+        });
+
+        // Animations
+        const style = document.createElement('style');
+        style.textContent = `
+            .animate-fade-in { animation: fadeIn 1s ease-in; }
+            .animate-slide-in { animation: slideIn 0.5s ease-out; }
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
