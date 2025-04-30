@@ -39,6 +39,9 @@
         .animate-slide-in {
             animation: slideIn 0.5s ease-out;
         }
+        .animate-bounce {
+            animation: bounce 1s ease-in-out;
+        }
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -47,9 +50,40 @@
             from { transform: translateY(20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-content {
+            padding: 2rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            max-width: 90%;
+        }
+        .emoji {
+            font-size: 8rem;
+            line-height: 1;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300" style="background-color: var(--background)">
+    <!-- Audio Elements for Sound Effects -->
+    <audio id="positiveSound" src="https://cdn.pixabay.com/audio/2023/03/22/audio_14f5f6f4a5.mp3" preload="auto"></audio>
+    <audio id="negativeSound" src="https://cdn.pixabay.com/audio/2023/03/22/audio_7b3a4e4f6e.mp3" preload="auto"></audio>
+    <audio id="neutralSound" src="https://cdn.pixabay.com/audio/2023/03/22/audio_3f6b7e4a2c.mp3" preload="auto"></audio>
+
     <div class="p-6 rounded-lg shadow-lg w-full max-w-5xl animate-fade-in card" style="background-color: var(--secondary)">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
@@ -119,6 +153,15 @@
                 </div>
             </div>
             <div id="recent" class="space-y-2 max-h-60 overflow-y-auto"></div>
+        </div>
+
+        <!-- Sentiment Emoji Modal -->
+        <div id="sentimentModal" class="modal hidden">
+            <div class="modal-content card animate-bounce" style="background-color: var(--background)">
+                <span id="sentimentEmoji" class="emoji"></span>
+                <p id="sentimentText" class="text-2xl font-semibold mt-4" style="color: var(--primary)"></p>
+                <button id="closeModal" class="mt-4 p-2 rounded-md hover:opacity-90 transition" style="background-color: var(--accent); color: var(--text)">Close</button>
+            </div>
         </div>
     </div>
 
@@ -258,6 +301,10 @@
         const loadingSpinner = document.getElementById('loadingSpinner');
         const analyzeText = document.getElementById('analyzeText');
         const suggestionsList = document.getElementById('suggestions');
+        const sentimentModal = document.getElementById('sentimentModal');
+        const sentimentEmoji = document.getElementById('sentimentEmoji');
+        const sentimentText = document.getElementById('sentimentText');
+        const closeModal = document.getElementById('closeModal');
 
         // Autocomplete (mock suggestions)
         const mockSuggestions = ['AI', 'Climate Change', 'Economy', 'Technology', 'Health', 'Punjab', 'LPU', 'India', 'fast'];
@@ -281,6 +328,48 @@
                 suggestionsList.classList.remove('hidden');
             } else {
                 suggestionsList.classList.add('hidden');
+            }
+        });
+
+        // Show sentiment emoji and play sound
+        function showSentimentModal(sentiment, compound) {
+            let emoji, text, sound;
+            if (compound > 0.05) {
+                emoji = '😊';
+                text = 'Positive Sentiment';
+                sound = document.getElementById('positiveSound');
+            } else if (compound < -0.05) {
+                emoji = '😢';
+                text = 'Negative Sentiment';
+                sound = document.getElementById('negativeSound');
+            } else {
+                emoji = '😐';
+                text = 'Neutral Sentiment';
+                sound = document.getElementById('neutralSound');
+            }
+
+            sentimentEmoji.textContent = emoji;
+            sentimentText.textContent = text;
+            sentimentModal.classList.remove('hidden');
+
+            // Play sound effect
+            if (sound) {
+                sound.currentTime = 0; // Reset to start
+                sound.play().catch(error => {
+                    console.warn('Sound playback failed:', error);
+                });
+            }
+        }
+
+        // Close modal
+        closeModal.addEventListener('click', () => {
+            sentimentModal.classList.add('hidden');
+        });
+
+        // Close modal on click outside
+        sentimentModal.addEventListener('click', (e) => {
+            if (e.target === sentimentModal) {
+                sentimentModal.classList.add('hidden');
             }
         });
 
@@ -321,6 +410,14 @@
                 redditPieChart.data.datasets[0].data = [insights.sentiment_metrics.reddit.pos, insights.sentiment_metrics.reddit.neg, insights.sentiment_metrics.reddit.neu];
                 newsPieChart.data.datasets[0].data = [insights.sentiment_metrics.news.pos, insights.sentiment_metrics.news.neg, insights.sentiment_metrics.news.neu];
                 updateChartColors();
+
+                // Calculate overall sentiment (average of Reddit and News compound scores)
+                const redditAvg = data.reddit.reduce((sum, s) => sum + s.compound, 0) / (data.reddit.length || 1);
+                const newsAvg = data.news.reduce((sum, s) => sum + s.compound, 0) / (data.news.length || 1);
+                const overallSentiment = (redditAvg + newsAvg) / 2;
+
+                // Show sentiment emoji modal
+                showSentimentModal(overallSentiment > 0 ? 'positive' : overallSentiment < 0 ? 'negative' : 'neutral', overallSentiment);
 
                 // Update recent analyses
                 await loadRecent();

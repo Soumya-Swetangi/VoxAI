@@ -28,11 +28,16 @@ reddit = praw.Reddit(
 # News API key
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "5653e38eed5d456abb58838de30cafcb")
 
-# Hugging Face API setup
-HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
-HUGGINGFACE_API_URL_SUMMARY = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
-HUGGINGFACE_API_URL_ANALYSIS = "https://api-inference.huggingface.co/models/gpt2"
-HEADERS = {"Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"}
+# Gemini API setup
+GEMINI_API_KEY = os.getenv("AIzaSyAUC9UsobKFpp9lMp0RYlz66jqO1A3Befo")
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# Validate environment variables
+missing_keys = []
+for key in ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "NEWS_API_KEY", "GEMINI_API_KEY"]:
+    if not os.getenv(key):
+        missing_keys.append(key)
+if missing_keys:
+    logging.warning(f"Missing environment variables: {', '.join(missing_keys)}. Some features may not work.")
 
 # Initialize sentiment analyzer
 analyzer = SentimentIntensityAnalyzer()
@@ -46,11 +51,11 @@ sentiments = {'reddit': [], 'news': []}
 
 def fetch_reddit_posts(topic):
     try:
-        subreddit = reddit.subreddit('all').search(topic, limit=10)  # Increased limit
+        subreddit = reddit.subreddit('all').search(topic, limit=10)
         posts = []
         for submission in subreddit:
             score = analyzer.polarity_scores(submission.title)
-            body = submission.selftext[:1000] if submission.selftext else ""  # Increased limit
+            body = submission.selftext[:1000] if submission.selftext else ""
             text = f"{submission.title} {body}".strip()
             posts.append({
                 'text': text,
@@ -61,21 +66,26 @@ def fetch_reddit_posts(topic):
                 'timestamp': datetime.now(timezone.utc).isoformat(),
                 'source': 'reddit'
             })
+        logging.debug(f"Fetched {len(posts)} Reddit posts for topic: {topic}")
         return posts
     except Exception as e:
-        logging.error(f"Reddit fetch error: {str(e)}")
+        logging.error(f"Reddit fetch error for topic {topic}: {str(e)}")
         return []
 
 def fetch_news_articles(topic):
     try:
-        url = f"https://newsapi.org/v2/everything?q={topic}&apiKey={NEWS_API_KEY}&language=en&sortBy=publishedAt&pageSize=10"  # Increased pageSize
-        response = requests.get(url)
+        url = f"https://newsapi.org/v2/everything?q={topic}&apiKey={NEWS_API_KEY}&language=en&sortBy=publishedAt&pageSize=10"
+        response = session.get(url, timeout=10)
         response.raise_for_status()
-        articles = response.json().get('articles', [])
+        data = response.json()
+        if 'articles' not in data:
+            logging.error(f"No 'articles' key in News API response for topic {topic}: {data}")
+            return []
+        articles = data.get('articles', [])
         news = []
         for article in articles:
             title = article.get('title', '')
-            description = article.get('description', '')[:1000] or ''  # Increased limit
+            description = article.get('description', '')[:1000] or ''
             if title:
                 score = analyzer.polarity_scores(title)
                 text = f"{title} {description}".strip()
@@ -88,9 +98,10 @@ def fetch_news_articles(topic):
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'source': 'news'
                 })
+        logging.debug(f"Fetched {len(news)} news articles for topic: {topic}")
         return news
     except Exception as e:
-        logging.error(f"News fetch error: {str(e)}")
+        logging.error(f"News fetch error for topic {topic}: {str(e)}")
         return []
 
 def clean_text(text):
@@ -100,38 +111,63 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-def huggingface_summarize(text):
-    """Call Hugging Face API for summarization."""
+def gemini_summarize(text):
+    """Call Gemini API for summarization."""
+    if not GEMINI_API_KEY:
+        logging.warning("Gemini API key not set, skipping summarization")
+        return None
     try:
-        if not HUGGINGFACE_API_TOKEN:
-            raise ValueError("Hugging Face API token not set")
+        headers = {"Content-Type": "application/json"}
         payload = {
-            "inputs": text,
-            "parameters": {"max_length": 200, "min_length": 50}
+            "contents": [{
+                "parts": [{"text": f"Provide a concise summary (50-200 words) of the following text, focusing on key points and public sentiment: {text[:2000]}"}]
+            }]
         }
-        response = requests.post(HUGGINGFACE_API_URL_SUMMARY, headers=HEADERS, json=payload)
+        url = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
+        logging.debug(f"Sending Gemini API request for summarization: {url}")
+        response = session.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
-        return response.json()[0]['summary_text']
+        result = response.json()
+        logging.debug(f"Gemini API response: {result}")
+        if "candidates" in result and result["candidates"]:
+            summary = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+            logging.debug(f"Gemini summarization successful: {summary[:100]}...")
+            return summary
+        else:
+            logging.warning("No valid summary returned by Gemini API")
+            return None
     except Exception as e:
-        logging.warning(f"Hugging Face summarization failed: {str(e)}")
+        logging.warning(f"Gemini summarization failed: {str(e)}")
         return None
 
-def huggingface_extract_themes(text):
-    """Call Hugging Face API to extract analytical themes."""
+def gemini_extract_themes(text):
+    """Call Gemini API to extract analytical themes."""
+    if not GEMINI_API_KEY:
+        logging.warning("Gemini API key not set, skipping theme extraction")
+        return []
     try:
-        if not HUGGINGFACE_API_TOKEN:
-            raise ValueError("Hugging Face API token not set")
+        headers = {"Content-Type": "application/json"}
         payload = {
-            "inputs": f"Identify key themes and specific events or entities driving public sentiment in the following text: {text[:500]}",
-            "parameters": {"max_new_tokens": 50}
+            "contents": [{
+                "parts": [{"text": f"Identify 3-5 key themes or entities driving public sentiment in the following text, returning them as a comma-separated list (e.g., 'climate change, renewable energy, emissions'): {text[:1000]}"}]
+            }]
         }
-        response = requests.post(HUGGINGFACE_API_URL_ANALYSIS, headers=HEADERS, json=payload)
+        url = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
+        logging.debug(f"Sending Gemini API request for theme extraction: {url}")
+        response = session.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
-        generated_text = response.json()[0]['generated_text']
-        themes = [theme.strip() for theme in generated_text.split(',') if len(theme.strip()) > 3]
-        return themes[:3]
+        result = response.json()
+        logging.debug(f"Gemini API response: {result}")
+        if "candidates" in result and result["candidates"]:
+            themes = result["candidates"][0]["content"]["parts"][0]["text"].strip().split(",")
+            themes = [theme.strip() for theme in themes if len(theme.strip()) > 3]
+            logging.debug(f"Gemini theme extraction successful: {themes}")
+            return themes[:3]
+        else:
+            logging.warning("No valid themes returned by Gemini API")
+            return []
     except Exception as e:
-        logging.warning(f"Hugging Face theme extraction failed: {str(e)}")
+        logging.warning(f"Gemini theme extraction failed: {str(e)}")
         return []
 
 def analyze_sentiment_drivers(posts, themes):
@@ -146,6 +182,23 @@ def analyze_sentiment_drivers(posts, themes):
                 elif post['compound'] < -0.2:
                     drivers['negative'].append(theme)
     return drivers
+
+def extract_fallback_themes(texts):
+    """Extract meaningful themes as a fallback if Gemini fails."""
+    stopwords = {
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+        'that', 'this', 'is', 'are', 'was', 'were', 'be', 'been', 'will', 'about', 'from', 'as',
+        'it', 'they', 'their', 'there', 'which', 'what', 'when', 'where', 'who', 'why', 'how',
+        'according', 'some', 'many', 'other', 'such', 'just', 'only', 'also', 'very', 'more',
+        'most', 'any', 'all', 'can', 'have', 'has', 'had', 'not'
+    }
+    words = [word.lower() for text in texts for word in clean_text(text).split() if word.lower() not in stopwords and len(word) > 4]
+    word_counts = Counter(words)
+    themes = [word for word, count in word_counts.most_common(5) if count > 1 and len(word) > 4]
+    if not themes:
+        themes = ['General Discussion', 'Public Opinion', 'Trends']
+    logging.debug(f"Fallback themes extracted: {themes}")
+    return themes[:3]
 
 @app.route('/')
 def index():
@@ -186,7 +239,7 @@ def analyze_topic(topic):
         logging.debug(f"Analyzed topic: {topic}, Reddit: {len(reddit_posts)}, News: {len(news_articles)}")
         return jsonify({'reddit': reddit_posts, 'news': news_articles})
     except Exception as e:
-        logging.error(f"Analyze error: {str(e)}")
+        logging.error(f"Analyze error for topic {topic}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/insights/<topic>')
@@ -228,24 +281,20 @@ def get_insights(topic):
         elif reddit_avg < -0.2 and news_avg < -0.2:
             sentiment_description = "generally negative"
 
-        # Generate summary using Hugging Face API
+        # Generate summary using Gemini API
         summary = f"Public sentiment on {topic} is {sentiment_description} (Reddit: {reddit_avg:.2f}, News: {news_avg:.2f})."
         if len(combined_text) > 100:
-            summary_text = huggingface_summarize(combined_text)
+            summary_text = gemini_summarize(combined_text)
             if summary_text:
                 summary = summary_text
             else:
                 summary = f"Overview of {topic} based on recent discussions and articles. Sentiment is {sentiment_description} (Reddit: {reddit_avg:.2f}, News: {news_avg:.2f})."
 
-        # Extract themes using Hugging Face API
-        themes = huggingface_extract_themes(combined_text)
+        # Extract themes using Gemini API
+        themes = gemini_extract_themes(combined_text)
         if not themes:
-            # Fallback to simple keyword extraction
-            stopwords = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
-            words = [word for text in all_texts for word in clean_text(text).split() if word not in stopwords and len(word) > 3]
-            themes = [word for word, _ in Counter(words).most_common(3)]
-            if not themes:
-                themes = ['General Discussion', 'Public Opinion', 'Trends']
+            themes = extract_fallback_themes(all_texts)
+            logging.debug(f"Fell back to keyword extraction for themes: {themes}")
 
         # Analyze sentiment drivers
         sentiment_drivers = analyze_sentiment_drivers(all_posts, themes)
@@ -280,7 +329,7 @@ def get_insights(topic):
         # Prepare sentiment metrics for the graph
         sentiment_metrics = {
             'reddit': {'pos': reddit_pos, 'neg': reddit_neg, 'neu': reddit_neu},
-            'news': {'pos': news_pos, 'neg': news_neg, 'neu': news_neg}
+            'news': {'pos': news_pos, 'neg': news_neg, 'neu': news_neu}
         }
 
         logging.debug(f"Insights for {topic}: Summary: {summary}, Insights: {insights_text}, Themes: {themes}, Recommendations: {recommendations}, Sentiment Metrics: {sentiment_metrics}")
@@ -292,7 +341,7 @@ def get_insights(topic):
             'sentiment_metrics': sentiment_metrics
         })
     except Exception as e:
-        logging.error(f"Insights error: {str(e)}")
+        logging.error(f"Insights error for topic {topic}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/data')
