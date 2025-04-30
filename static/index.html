@@ -23,14 +23,38 @@
             --background: #111827; /* Gray-900 */
             --text: #E5E7EB; /* Gray-200 */
         }
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .animate-fade-in {
+            animation: fadeIn 1s ease-in;
+        }
+        .animate-slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300" style="background-color: var(--background)">
-    <div class="p-6 rounded-lg shadow-lg w-full max-w-5xl animate-fade-in" style="background-color: var(--secondary)">
+    <div class="p-6 rounded-lg shadow-lg w-full max-w-5xl animate-fade-in card" style="background-color: var(--secondary)">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold" style="color: var(--primary)">Public Opinion Tracker</h1>
-            <button id="themeToggle" class="p-2 rounded-full" style="background-color: var(--background)">
+            <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition" style="background-color: var(--background)">
                 <svg class="w-6 h-6" style="color: var(--text)" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
                 </svg>
@@ -40,8 +64,8 @@
         <!-- Search Bar -->
         <div class="mb-6 flex flex-col sm:flex-row gap-4">
             <div class="relative flex-1">
-                <input id="topic" type="text" placeholder="Enter topic (e.g., AI)" class="w-full p-3 border rounded-md focus:outline-none focus:ring-2" style="background-color: var(--background); color: var(--text); border-color: var(--secondary); --tw-ring-color: var(--accent)">
-                <ul id="suggestions" class="absolute w-full border rounded-md mt-1 max-h-40 overflow-y-auto hidden" style="background-color: var(--background); border-color: var(--secondary)">
+                <input id="topic" type="text" placeholder="Enter topic (e.g., AI)" class="w-full p-3 border rounded-md focus:outline-none focus:ring-2 transition" style="background-color: var(--background); color: var(--text); border-color: var(--secondary); --tw-ring-color: var(--accent)">
+                <ul id="suggestions" class="absolute w-full border rounded-md mt-1 max-h-40 overflow-y-auto hidden z-10" style="background-color: var(--background); border-color: var(--secondary)">
                 </ul>
             </div>
             <button id="analyze" class="p-3 rounded-md hover:opacity-90 transition flex items-center" style="background-color: var(--accent); color: var(--text)">
@@ -54,9 +78,9 @@
         </div>
 
         <!-- AI Insights -->
-        <div id="insights" class="mb-6 p-4 rounded-md hidden" style="background-color: var(--secondary)">
+        <div id="insights" class="mb-6 p-4 rounded-md hidden card" style="background-color: var(--background)">
             <h2 class="text-xl font-semibold" style="color: var(--primary)">AI Insights</h2>
-            <p id="insightsSummary" style="color: var(--text)"></p>
+            <p id="insightsSummary" class="mt-2" style="color: var(--text)"></p>
             <div class="mt-2">
                 <strong style="color: var(--primary)">Themes:</strong>
                 <span id="insightsThemes" style="color: var(--text)"></span>
@@ -69,13 +93,15 @@
 
         <!-- Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="p-4 rounded-md" style="background-color: var(--secondary)">
+            <div class="p-4 rounded-md card" style="background-color: var(--background)">
                 <h2 class="text-xl font-semibold mb-2" style="color: var(--primary)">Reddit Sentiment</h2>
                 <canvas id="redditChart" class="w-full h-64"></canvas>
+                <canvas id="redditPieChart" class="w-full h-64 mt-4"></canvas>
             </div>
-            <div class="p-4 rounded-md" style="background-color: var(--secondary)">
+            <div class="p-4 rounded-md card" style="background-color: var(--background)">
                 <h2 class="text-xl font-semibold mb-2" style="color: var(--primary)">News Sentiment</h2>
                 <canvas id="newsChart" class="w-full h-64"></canvas>
+                <canvas id="newsPieChart" class="w-full h-64 mt-4"></canvas>
             </div>
         </div>
 
@@ -84,7 +110,7 @@
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold" style="color: var(--primary)">Recent Analyses</h2>
                 <div class="flex gap-2">
-                    <select id="sourceFilter" class="p-2 border rounded-md" style="background-color: var(--background); color: var(--text); border-color: var(--secondary)">
+                    <select id="sourceFilter" class="p-2 border rounded-md focus:outline-none focus:ring-2 transition" style="background-color: var(--background); color: var(--text); border-color: var(--secondary); --tw-ring-color: var(--accent)">
                         <option value="all">All Sources</option>
                         <option value="reddit">Reddit</option>
                         <option value="news">News</option>
@@ -97,7 +123,7 @@
     </div>
 
     <script>
-        // Initialize Charts
+        // Initialize Bar Charts
         const redditChart = new Chart(document.getElementById('redditChart').getContext('2d'), {
             type: 'bar',
             data: { 
@@ -113,7 +139,8 @@
             options: {
                 scales: { y: { beginAtZero: true, min: -1, max: 1 } },
                 plugins: { 
-                    tooltip: { callbacks: { label: ctx => `Sentiment: ${ctx.raw.toFixed(2)}` } } 
+                    tooltip: { callbacks: { label: ctx => `Sentiment: ${ctx.raw.toFixed(2)}` } },
+                    title: { display: true, text: 'Reddit Sentiment Scores', color: 'var(--primary)' }
                 },
                 animation: { duration: 1000, easing: 'easeOutBounce' },
                 onClick: (e, elements) => {
@@ -141,7 +168,8 @@
             options: {
                 scales: { y: { beginAtZero: true, min: -1, max: 1 } },
                 plugins: { 
-                    tooltip: { callbacks: { label: ctx => `Sentiment: ${ctx.raw.toFixed(2)}` } } 
+                    tooltip: { callbacks: { label: ctx => `Sentiment: ${ctx.raw.toFixed(2)}` } },
+                    title: { display: true, text: 'News Sentiment Scores', color: 'var(--primary)' }
                 },
                 animation: { duration: 1000, easing: 'easeOutBounce' },
                 onClick: (e, elements) => {
@@ -154,16 +182,74 @@
             }
         });
 
+        // Initialize Pie Charts
+        const redditPieChart = new Chart(document.getElementById('redditPieChart').getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: ['Positive', 'Negative', 'Neutral'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['#1E3A8A', '#F87171', '#D1D5DB'],
+                    borderColor: 'var(--background)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: 'var(--text)' } },
+                    title: { display: true, text: 'Reddit Sentiment Distribution', color: 'var(--primary)' }
+                },
+                animation: { duration: 1000, easing: 'easeOutQuad' }
+            }
+        });
+
+        const newsPieChart = new Chart(document.getElementById('newsPieChart').getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: ['Positive', 'Negative', 'Neutral'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['#1E3A8A', '#F87171', '#D1D5DB'],
+                    borderColor: 'var(--background)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: 'var(--text)' } },
+                    title: { display: true, text: 'News Sentiment Distribution', color: 'var(--primary)' }
+                },
+                animation: { duration: 1000, easing: 'easeOutQuad' }
+            }
+        });
+
         // Theme Toggle
         const themeToggle = document.getElementById('themeToggle');
         themeToggle.addEventListener('click', () => {
             document.documentElement.classList.toggle('dark');
             localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            updateChartColors();
         });
 
         // Load saved theme
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.classList.add('dark');
+        }
+
+        // Update chart colors for dark mode
+        function updateChartColors() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const pieColors = isDark 
+                ? ['#93C5FD', '#FCA5A5', '#4B5563'] // Dark mode: Blue-300, Red-300, Gray-600
+                : ['#1E3A8A', '#F87171', '#D1D5DB']; // Light mode: Slate Blue, Coral Pink, Soft Gray
+            redditPieChart.data.datasets[0].backgroundColor = pieColors;
+            newsPieChart.data.datasets[0].backgroundColor = pieColors;
+            redditPieChart.options.plugins.legend.labels.color = 'var(--text)';
+            newsPieChart.options.plugins.legend.labels.color = 'var(--text)';
+            redditPieChart.options.plugins.title.color = 'var(--primary)';
+            newsPieChart.options.plugins.title.color = 'var(--primary)';
+            redditPieChart.update();
+            newsPieChart.update();
         }
 
         // Search and Analyze
@@ -212,7 +298,7 @@
                 console.log('Analyze response:', response.data);
                 const data = response.data;
 
-                // Update charts
+                // Update bar charts
                 redditChart.data.labels = data.reddit.map((_, i) => `Post ${i + 1}`);
                 redditChart.data.datasets[0].data = data.reddit.map(s => s.compound);
                 redditChart.update();
@@ -230,6 +316,11 @@
                 document.getElementById('insightsThemes').textContent = insights.themes.join(', ');
                 document.getElementById('insightsRecommendations').textContent = insights.recommendations.join(', ');
                 document.getElementById('insights').classList.remove('hidden');
+
+                // Update pie charts
+                redditPieChart.data.datasets[0].data = [insights.sentiment_metrics.reddit.pos, insights.sentiment_metrics.reddit.neg, insights.sentiment_metrics.reddit.neu];
+                newsPieChart.data.datasets[0].data = [insights.sentiment_metrics.news.pos, insights.sentiment_metrics.news.neg, insights.sentiment_metrics.news.neu];
+                updateChartColors();
 
                 // Update recent analyses
                 await loadRecent();
@@ -265,8 +356,8 @@
 
                 filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5).forEach(s => {
                     const div = document.createElement('div');
-                    div.className = 'p-3 rounded animate-slide-in';
-                    div.style.backgroundColor = 'var(--secondary)';
+                    div.className = 'p-3 rounded animate-slide-in card';
+                    div.style.backgroundColor = 'var(--background)';
                     const sourceName = s.source ? (s.source.charAt(0).toUpperCase() + s.source.slice(1)) : 'Unknown';
                     div.innerHTML = `<strong style="color: var(--primary)">${sourceName}:</strong> ${s.text} <span style="color: var(--text)"> (Sentiment: ${s.compound.toFixed(2)})</span>`;
                     recentDiv.appendChild(div);
@@ -311,15 +402,8 @@
             }
         });
 
-        // Animations
-        const style = document.createElement('style');
-        style.textContent = `
-            .animate-fade-in { animation: fadeIn 1s ease-in; }
-            .animate-slide-in { animation: slideIn 0.5s ease-out; }
-            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        `;
-        document.head.appendChild(style);
+        // Initial chart color update
+        updateChartColors();
     </script>
 </body>
 </html>
